@@ -79,7 +79,7 @@ setup(
             "faiss-gpu>=1.7.4",
         ],
         "ios": [
-            "tidevice>=0.9.0",
+            "pymobiledevice3>=4.22.0",
         ],
     },
     entry_points={
