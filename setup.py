@@ -78,6 +78,9 @@ setup(
             "torch[cuda]>=2.1.0",
             "faiss-gpu>=1.7.4",
         ],
+        "ios": [
+            "tidevice>=0.9.0",
+        ],
     },
     entry_points={
         "console_scripts": [

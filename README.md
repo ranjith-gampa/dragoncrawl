@@ -168,8 +168,12 @@ python examples/android_example.py
 ```bash
 # Install Xcode and iOS simulators
 # Install required tools
-npm install -g ios-deploy
+pip install dragoncrawl[ios]  # Installs tidevice (modern replacement for ios-deploy)
 brew install libimobiledevice
+
+# Alternative: Use Xcode's built-in tools
+# xcrun simctl list devices  # List available simulators
+# xcrun devicectl list devices  # List physical devices (Xcode 15+)
 
 # Run with iOS simulator
 python examples/ios_example.py
