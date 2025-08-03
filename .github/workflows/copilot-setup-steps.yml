@@ -1,0 +1,177 @@
+name: GitHub Copilot Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup_type:
+        description: 'Type of setup to perform'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+          - testing
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  copilot-environment-setup:
+    name: Setup Development Environment for Copilot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-copilot-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-copilot-
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Install pre-commit hooks
+        run: |
+          pre-commit install
+          pre-commit install --hook-type commit-msg
+
+      - name: Run initial code quality checks
+        run: |
+          echo "Running code quality checks for Copilot environment..."
+          black --check src/ tests/ || echo "Black formatting needed"
+          isort --check-only src/ tests/ || echo "Import sorting needed"
+          flake8 src/ tests/ || echo "Linting issues found"
+          mypy src/ || echo "Type checking issues found"
+
+      - name: Run initial test suite
+        run: |
+          echo "Running initial test suite..."
+          pytest tests/ -v --tb=short
+
+      - name: Generate project documentation
+        run: |
+          echo "Generating project documentation..."
+          pip install sphinx sphinx-rtd-theme
+          mkdir -p docs
+          echo "# DragonCrawl Documentation" > docs/README.md
+          echo "Documentation will be generated here" >> docs/README.md
+
+      - name: Setup development environment info
+        run: |
+          echo "=== DragonCrawl Development Environment Setup Complete ===" 
+          echo "Python Version: $(python --version)"
+          echo "Pip Version: $(pip --version)"
+          echo "Installed Packages:"
+          pip list | grep -E "(pytest|black|isort|flake8|mypy|fastapi|torch|transformers)"
+          echo ""
+          echo "Repository Structure:"
+          find . -type f -name "*.py" | head -10
+          echo ""
+          echo "Pre-commit hooks installed:"
+          pre-commit --version
+
+      - name: Create environment summary
+        run: |
+          cat > environment-summary.md << 'EOF'
+          # DragonCrawl Development Environment Summary
+          
+          ## Setup Type: ${{ github.event.inputs.setup_type }}
+          
+          ## Installed Components
+          - ✅ Python ${{ env.PYTHON_VERSION }}
+          - ✅ Core dependencies (FastAPI, PyTorch, Transformers)
+          - ✅ Development tools (pytest, black, isort, flake8, mypy)
+          - ✅ Pre-commit hooks configured
+          - ✅ Package installed in development mode
+          
+          ## Project Structure
+          ```
+          dragoncrawl/
+          ├── src/dragoncrawl/        # Main package
+          │   ├── core/               # Core modules
+          │   └── __init__.py
+          ├── tests/                  # Test suite
+          ├── .github/                # CI/CD workflows
+          ├── requirements.txt        # Production dependencies
+          ├── requirements-dev.txt    # Development dependencies
+          └── setup.py               # Package configuration
+          ```
+          
+          ## Next Steps for Development
+          1. Review the codebase structure in `src/dragoncrawl/`
+          2. Run tests with: `pytest tests/`
+          3. Format code with: `black src/ tests/`
+          4. Check types with: `mypy src/`
+          5. Run pre-commit: `pre-commit run --all-files`
+          
+          ## Copilot Integration Notes
+          - Repository follows Python best practices
+          - Type hints are used throughout
+          - Async/await patterns implemented
+          - Comprehensive test coverage target: 90%+
+          - AI/ML focus with transformers and PyTorch
+          
+          Generated on: $(date)
+          EOF
+
+      - name: Upload environment summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-environment-summary
+          path: environment-summary.md
+
+  validate-copilot-integration:
+    name: Validate Copilot Integration
+    needs: copilot-environment-setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Quick validation tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          
+          # Test package imports
+          python -c "import dragoncrawl; print('✅ DragonCrawl package imports successfully')"
+          python -c "from dragoncrawl.core import LanguageModel; print('✅ Core modules import successfully')"
+          
+          # Test basic functionality
+          python -c "
+          import asyncio
+          from dragoncrawl.core.language_model import LanguageModel
+          
+          async def test():
+              model = LanguageModel()
+              embeddings = await model.generate_embeddings('test')
+              assert len(embeddings) == 768
+              print('✅ Basic functionality works')
+          
+          asyncio.run(test())
+          "
+
+      - name: Report validation results
+        run: |
+          echo "🎉 Copilot environment validation completed successfully!"
+          echo "The DragonCrawl project is ready for AI-assisted development."

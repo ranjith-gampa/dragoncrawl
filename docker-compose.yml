@@ -1,0 +1,220 @@
+# DragonCrawl Development Environment
+# Multi-service setup for AI-powered mobile testing
+
+version: '3.8'
+
+services:
+  # Main DragonCrawl application
+  dragoncrawl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: dragoncrawl-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - dragoncrawl-models:/app/models
+      - dragoncrawl-data:/app/data
+    environment:
+      - PYTHONPATH=/app/src
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    depends_on:
+      - postgres
+      - redis
+      - vector-db
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # PostgreSQL database for metadata and test results
+  postgres:
+    image: postgres:16-alpine
+    container_name: dragoncrawl-postgres
+    environment:
+      - POSTGRES_DB=dragoncrawl
+      - POSTGRES_USER=dragoncrawl
+      - POSTGRES_PASSWORD=dragoncrawl_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: dragoncrawl-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Vector database for embeddings (using Weaviate)
+  vector-db:
+    image: semitechnologies/weaviate:1.22.4
+    container_name: dragoncrawl-weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      - QUERY_DEFAULTS_LIMIT=25
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - DEFAULT_VECTORIZER_MODULE=none
+      - ENABLE_MODULES=text2vec-transformers
+      - CLUSTER_HOSTNAME=node1
+    volumes:
+      - weaviate-data:/var/lib/weaviate
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Jupyter notebook for ML experimentation
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: dragoncrawl-jupyter
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+      - jupyter-data:/home/dragoncrawl/.jupyter
+    environment:
+      - PYTHONPATH=/app/src
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # MLflow for experiment tracking
+  mlflow:
+    image: python:3.12-slim
+    container_name: dragoncrawl-mlflow
+    command: >
+      bash -c "
+        pip install mlflow psycopg2-binary &&
+        mlflow server 
+          --backend-store-uri postgresql://dragoncrawl:dragoncrawl_dev_password@postgres:5432/dragoncrawl
+          --default-artifact-root /app/mlruns
+          --host 0.0.0.0
+          --port 5000
+      "
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-artifacts:/app/mlruns
+    depends_on:
+      - postgres
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Appium server for mobile testing
+  appium:
+    image: appium/appium:latest
+    container_name: dragoncrawl-appium
+    ports:
+      - "4723:4723"
+    environment:
+      - RELAXED_SECURITY=true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - appium-logs:/var/log/appium
+    privileged: true
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Selenium Grid Hub for web testing
+  selenium-hub:
+    image: selenium/hub:4.15.0
+    container_name: dragoncrawl-selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      - GRID_MAX_SESSION=16
+      - GRID_BROWSER_TIMEOUT=300
+      - GRID_TIMEOUT=300
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Chrome node for Selenium Grid
+  selenium-chrome:
+    image: selenium/node-chrome:4.15.0
+    container_name: dragoncrawl-selenium-chrome
+    depends_on:
+      - selenium-hub
+    environment:
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+      - NODE_MAX_INSTANCES=4
+      - NODE_MAX_SESSION=4
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dragoncrawl-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+  # Grafana for monitoring dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dragoncrawl-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - dragoncrawl-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  weaviate-data:
+  jupyter-data:
+  mlflow-artifacts:
+  appium-logs:
+  prometheus-data:
+  grafana-data:
+  dragoncrawl-models:
+  dragoncrawl-data:
+
+networks:
+  dragoncrawl-network:
+    driver: bridge
