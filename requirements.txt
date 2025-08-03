@@ -1,0 +1,46 @@
+# DragonCrawl Production Dependencies
+# AI/ML and Language Model dependencies
+torch==2.1.2
+transformers==4.36.2
+sentence-transformers==2.2.2
+numpy==1.24.4
+scipy==1.11.4
+
+# Vector Database and Embeddings
+faiss-cpu==1.7.4
+pinecone-client==3.0.0
+
+# Web Framework and API
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.2
+httpx==0.25.2
+
+# Mobile Testing Framework Integration
+appium-python-client==3.1.1
+selenium==4.16.0
+
+# Database and Storage
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.23
+
+# Configuration and Environment
+python-dotenv==1.0.0
+pydantic-settings==2.1.0
+
+# Logging and Monitoring
+structlog==23.2.0
+prometheus-client==0.19.0
+
+# Async and Concurrency
+aiofiles==23.2.1
+asyncio-mqtt==0.13.0
+
+# Image Processing and Computer Vision
+pillow==10.1.0
+opencv-python==4.8.1.78
+
+# Utilities
+click==8.1.7
+rich==13.7.0
+tenacity==8.2.3
